@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <p style="border: 1px solid black" id="box">마우스를 올려보세요.</p>
+
+    <script>
+        const box = document.querySelector("#box");
+
+        function changeTextColor(color) {
+            box.style.color = color;
+            box.style.border = "1px solid " + color;
+        };
+
+        box.addEventListener("mouseover", () => changeTextColor("orange"));
+        box.addEventListener("mouseout", () => changeTextColor("black"));
+
+        // 이벤트 리스너 함수에 매개변수를 전달하고 싶을 때,
+        // 화살표 함수로 원함수를 감싸준다
+
+    </script>
+</body>
+
+</html>

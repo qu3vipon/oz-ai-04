@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <input type="text" placeholder="이름을 입력하세요." id="nameInput">
+    <button>확인</button>
+    <div id="result"></div>
+
+    <script>
+        const input = document.querySelector("#nameInput");
+        const button = document.querySelector("button");
+        const result = document.querySelector("#result");
+
+        function printName() {
+            if (input.value.trim() === "") {
+                alert("이름을 입력하세요");
+                return;
+            };
+
+            result.innerHTML = "";
+
+            // 1) input 태그에 입력된 이름을 읽어온다
+            const welcomeText = "환영합니다, " + input.value + " 님";
+
+            // 2) 새로운 p 태그를 만든다.
+            const p = document.createElement("p");  // <p></p>
+            p.textContent = welcomeText;  // <p>welcomeText</p>
+
+            // 3) DOM에 p 태그를 추가한다
+            result.appendChild(p);
+        };
+
+        button.addEventListener("click", printName);
+
+    </script>
+</body>
+
+</html>

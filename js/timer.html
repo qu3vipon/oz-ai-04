@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <button id="start">카운트다운 시작</button>
+    <p id="result"></p>
+
+    <script>
+        const button = document.querySelector("#start");
+        const result = document.querySelector("#result");
+
+        let timerId = null;
+
+        // 버튼 클릭 되었을 때, 동작할 함수
+        function startButton() {
+            if (timerId !== null) {
+                alert("이미 진행 중인 타이머가 있습니다.")
+                return;
+            };
+
+            // 타이머 시작
+            button.disabled = true;
+
+            let count = 10;
+            result.textContent = count;
+
+            timerId = setInterval(
+                () => {
+                    count--;
+                    result.textContent = count;
+
+                    // 타이머가 종료되면, 기본 설정 초기화
+                    if (count == 0) {
+                        clearInterval(timerId);
+                        timerId = null;
+                        button.disabled = false;
+                    };
+                },
+                1000
+            )
+        }
+
+        button.addEventListener("click", startButton)
+    </script>
+
+</body>
+
+</html>

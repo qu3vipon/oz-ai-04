@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <button>버튼</button>
+    <script>
+        const btn = document.querySelector("button")
+
+        // 버튼에 이벤트 리스너 추가
+        // 이벤트 리스너: 특정 이벤트가 발생하면, 어떤 동작하도록 세팅
+        function printLog() {
+            alert("클릭됨");
+        }
+
+        btn.addEventListener("click", printLog);
+    </script>
+</body>
+
+</html>

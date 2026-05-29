@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <input type="text" id="name" placeholder="이름 입력">
+    <button id="save">저장</button>
+    <p id="result"></p>
+
+    <script>
+        const input = document.querySelector("#name");
+        const button = document.querySelector("#save");
+        const result = document.querySelector("#result");
+
+        const savedName = localStorage.getItem("name");
+        if (savedName) {
+            result.textContent = savedName;
+        };
+
+        function saveName() {
+            localStorage.setItem("name", input.value);
+            result.textContent = input.value;
+        }
+
+        // button을 누르면, input 창에 입력한 이름을 result에 출력
+        button.addEventListener("click", saveName);
+    </script>
+</body>
+
+</html>
