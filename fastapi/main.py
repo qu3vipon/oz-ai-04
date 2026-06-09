@@ -3,13 +3,15 @@ from contextlib import asynccontextmanager
 import anyio
 
 from fastapi import FastAPI, Path, Body, HTTPException, Depends
-from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from openai import OpenAI
 
-from database import get_session
+from database_async import get_async_session
 from llama import llm, SYSTEM_PROMPT
 from orm import Item
-from schema import ItemCreateRequest, ItemResponse, ItemUpdateRequest
+from schema import ItemCreateRequest, ItemResponse, ItemUpdateRequest, OpenAIResponse
+from config import settings
 
 
 @asynccontextmanager
@@ -18,7 +20,27 @@ async def lifespan(app):
     limiter.total_tokens = 200  # 스레드 풀의 개수 조정
     yield
 
+
 app = FastAPI(lifespan=lifespan)
+
+client = OpenAI(api_key=settings.openai_api_key)
+
+@app.post(
+    "/gpt",
+    summary="ChatGPT API 호출",
+)
+def call_gpt_handler(
+    user_input: str = Body(..., embed=True),
+):
+    result = client.responses.parse(
+        model="gpt-4.1-mini",
+        input=user_input,
+        text_format=OpenAIResponse,
+    )
+
+    if result.output_parsed.confidence < 0.5:
+        return {"msg": "충분한 답변을 제공할 수 없습니다."}
+    return {"answer": result.output_parsed}
 
 @app.post(
     "/chats",
@@ -27,16 +49,25 @@ app = FastAPI(lifespan=lifespan)
 def create_chat_handler(
     user_input: str = Body(..., embed=True),
 ):
-    result = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
-        max_tokens=256,
-        temperature=0.7,
+    def token_generator():
+        result = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
+            max_tokens=256,
+            temperature=0.7,
+            stream=True,
+        )
+        for chunk in result:
+            token = chunk["choices"][0]["delta"].get("content")
+            if token:
+                yield token
+    
+    return StreamingResponse(
+        token_generator(),
+        media_type="text/event-stream",
     )
-    answer = result["choices"][0]["message"]["content"]
-    return {"answer": answer}
 
 # 상품 관리 API
 
@@ -46,10 +77,10 @@ def create_chat_handler(
     response_model=list[ItemResponse],
 )
 async def get_items_handler(
-    session = Depends(get_session),
+    session = Depends(get_async_session),
 ):
     stmt = select(Item)
-    result = await run_in_threadpool(session.execute, stmt)
+    result = await session.execute(stmt)
     items = result.scalars().all()
     return items
 
@@ -58,18 +89,18 @@ async def get_items_handler(
     summary="단일 상품 조회 API",
     response_model=ItemResponse,
 )
-def get_item_handler(
+async def get_item_handler(
     item_id: int = Path(..., ge=1, description="상품 고유번호"),
+    session = Depends(get_async_session),
 ):
-    with SessionFactory() as session:
-        stmt = select(Item).where(Item.id == item_id)
-        result = session.execute(stmt)
-        item: Item | None = result.scalar()
-        if item is None:
-            raise HTTPException(
-                status_code=404, detail="Item Not Found"
-            )
-        return item
+    stmt = select(Item).where(Item.id == item_id)
+    result = await session.execute(stmt)
+    item: Item | None = result.scalar()
+    if item is None:
+        raise HTTPException(
+            status_code=404, detail="Item Not Found"
+        )
+    return item
 
 
 @app.post(
@@ -78,38 +109,40 @@ def get_item_handler(
     status_code=201,  # 201 CREATED
     response_model=ItemResponse,
 )
-def create_item_handler(body: ItemCreateRequest):
-    with SessionFactory() as session:
-        new_item = Item(name=body.name, price=body.price)
-        session.add(new_item)
-        session.commit()
-        return new_item
+async def create_item_handler(
+    body: ItemCreateRequest,
+    session = Depends(get_async_session),
+):
+    new_item = Item(name=body.name, price=body.price)
+    session.add(new_item)
+    await session.commit()
+    return new_item
 
 @app.patch(
     "/items/{item_id}",
     summary="상품 수정 API",
     response_model=ItemResponse,
 )
-def update_item_handler(
+async def update_item_handler(
     item_id: int,
     body: ItemUpdateRequest,
+    session = Depends(get_async_session),
 ):
-    with SessionFactory() as session:
-        stmt = select(Item).where(Item.id == item_id)
-        result = session.execute(stmt)
-        item = result.scalar()
-        if item is None:
-            raise HTTPException(
-                status_code=404, detail="Item Not Found"
-            )
-        
-        if body.name is not None:
-            item.name = body.name
-        if body.price is not None:
-            item.price = body.price
+    stmt = select(Item).where(Item.id == item_id)
+    result = await session.execute(stmt)
+    item = result.scalar()
+    if item is None:
+        raise HTTPException(
+            status_code=404, detail="Item Not Found"
+        )
+    
+    if body.name is not None:
+        item.name = body.name
+    if body.price is not None:
+        item.price = body.price
 
-        session.commit()
-        return item
+    await session.commit()
+    return item
 
 @app.delete(
     "/items/{item_id}",
@@ -117,15 +150,17 @@ def update_item_handler(
     status_code=204,  # 204 NO CONTENT
     response_model=None,
 )
-def delete_item_handler(item_id: int):
-    with SessionFactory() as session:
-        stmt = select(Item).where(Item.id == item_id)
-        result = session.execute(stmt)
-        item = result.scalar()
-        if item is None:
-            raise HTTPException(
-                status_code=404, detail="Item Not Found"
-            )
-
-        session.delete(item)
-        session.commit()
+async def delete_item_handler(
+    item_id: int,
+    session = Depends(get_async_session),
+):
+    stmt = select(Item).where(Item.id == item_id)
+    result = await session.execute(stmt)
+    item = result.scalar()
+    if item is None:
+        raise HTTPException(
+            status_code=404, detail="Item Not Found"
+        )
+    
+    await session.delete(item)
+    await session.commit()
