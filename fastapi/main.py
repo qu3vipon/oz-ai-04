@@ -5,7 +5,7 @@ import anyio
 from fastapi import FastAPI, Path, Body, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from database_async import get_async_session
 from llama import llm, SYSTEM_PROMPT
@@ -23,24 +23,30 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 
-client = OpenAI(api_key=settings.openai_api_key)
+client = AsyncOpenAI(api_key=settings.openai_api_key)
 
 @app.post(
     "/gpt",
     summary="ChatGPT API 호출",
 )
-def call_gpt_handler(
+async def call_gpt_handler(
     user_input: str = Body(..., embed=True),
 ):
-    result = client.responses.parse(
-        model="gpt-4.1-mini",
-        input=user_input,
-        text_format=OpenAIResponse,
-    )
+    async def token_generator():
+        async with client.responses.stream(
+            model="gpt-4.1-mini",
+            input=user_input
+        ) as stream:
+            async for event in stream:
+                if event.type == "response.output_text.delta":
+                    yield event.delta
+                elif event.type == "response.completed":
+                    break
 
-    if result.output_parsed.confidence < 0.5:
-        return {"msg": "충분한 답변을 제공할 수 없습니다."}
-    return {"answer": result.output_parsed}
+    return StreamingResponse(
+        token_generator(),
+        media_type="text/event-stream",
+    )
 
 @app.post(
     "/chats",
