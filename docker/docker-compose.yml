@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    ports:
+      - "9000:8000"
+    volumes:
+      - .:/app
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: fastapi
+    ports:
+      - "33066:3306"
+    volumes:
+      - local_db:/var/lib/mysql
+
+volumes:
+  local_db:
