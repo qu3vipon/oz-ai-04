@@ -1,10 +1,13 @@
 services:
   api:
-    build: .
+    build: ./api
     ports:
       - "9000:8000"
     volumes:
-      - .:/app
+      - ./api:/app
+    depends_on:
+      - db
+      - redis
   db:
     image: mysql:8.4
     environment:
@@ -14,6 +17,14 @@ services:
       - "33066:3306"
     volumes:
       - local_db:/var/lib/mysql
+  worker:
+    build: ./worker
+    volumes:
+      - ./worker:/app
+    depends_on:
+      - redis
+  redis:
+    image: redis:8
 
 volumes:
   local_db:
