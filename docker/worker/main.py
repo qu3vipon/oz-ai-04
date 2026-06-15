@@ -5,7 +5,9 @@ from llama_cpp import Llama
 
 
 redis_client = redis.from_url(
-    "redis://redis:6379", decode_responses=True
+    "redis://redis:6379", 
+    decode_responses=True,
+    socket_timeout=None,
 )
 
 llm = Llama(
@@ -26,18 +28,18 @@ SYSTEM_PROMPT = (
 def run():
     while True:
         # 1) Task Dequeue
-        _, task = redis_client.brpop("inference_queue", timeout=0)
+        _, task = redis_client.brpop("inference_queue")
         task_data: dict = json.loads(task)
 
-        user_input = task_data["user_input"]
+        context: list[dict] = task_data["context"]
         channel_id = task_data["channel"]
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.extend(context)
 
         # 2) 추론
         response_generator = llm.create_chat_completion(
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
+            messages=messages,
             max_tokens=256,
             temperature=0.7,
             stream=True
